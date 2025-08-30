@@ -33,7 +33,9 @@ app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 // Disable problematic security headers for development
 app.use(helmet({
   contentSecurityPolicy: false,
-  crossOriginOpenerPolicy: false
+  crossOriginOpenerPolicy: false,
+  frameguard: false,
+  crossOriginResourcePolicy: false
 }));
 
 app.use(express.static('public'));

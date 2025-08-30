@@ -171,6 +171,17 @@
             color: white;
         }
 
+        .coming-soon {
+            text-align: center;
+            padding: 60px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        .coming-soon h3 { font-size: 2em; margin-bottom: 10px; }
+        .coming-soon p { opacity: 0.9; }
+
         .projects-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -357,6 +368,22 @@
                     <i class="fab fa-github"></i>
                     GitHub
                 </div>
+                <div class="nav-item" onclick="showSection('editor')">
+                    <i class="fas fa-code"></i>
+                    IDE
+                </div>
+                <div class="nav-item" onclick="showSection('templates')">
+                    <i class="fas fa-layer-group"></i>
+                    Templates
+                </div>
+                <div class="nav-item" onclick="showSection('settings')">
+                    <i class="fas fa-cog"></i>
+                    Settings
+                </div>
+                <div class="nav-item" onclick="showSection('activity')">
+                    <i class="fas fa-stream"></i>
+                    Activity
+                </div>
             </div>
 
             <div class="content-area">
@@ -469,6 +496,38 @@
                             <li>Real-time collaboration</li>
                             <li>Version control integration</li>
                         </ul>
+                    </div>
+                </div>
+
+                <div id="editor" class="section" style="display: none;">
+                    <h2><i class="fas fa-code"></i> IDE</h2>
+                    <div class="coming-soon">
+                        <h3><i class="fas fa-tools"></i> Builder IDE</h3>
+                        <p>Advanced visual editor and code workspace is coming soon.</p>
+                    </div>
+                </div>
+
+                <div id="templates" class="section" style="display: none;">
+                    <h2><i class="fas fa-layer-group"></i> Templates</h2>
+                    <div class="coming-soon">
+                        <h3><i class="fas fa-layer-group"></i> Template Library</h3>
+                        <p>Browse and use professional templates. Stay tuned.</p>
+                    </div>
+                </div>
+
+                <div id="settings" class="section" style="display: none;">
+                    <h2><i class="fas fa-cog"></i> Settings</h2>
+                    <div class="coming-soon">
+                        <h3><i class="fas fa-user-cog"></i> Project Settings</h3>
+                        <p>Manage environment, auth, and integrations soon.</p>
+                    </div>
+                </div>
+
+                <div id="activity" class="section" style="display: none;">
+                    <h2><i class="fas fa-stream"></i> Activity</h2>
+                    <div class="coming-soon">
+                        <h3><i class="fas fa-stream"></i> Activity Feed</h3>
+                        <p>Track changes, collaborators and deployments.</p>
                     </div>
                 </div>
             </div>

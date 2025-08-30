@@ -229,16 +229,36 @@ app.post('/api/media/upload', upload.single('file'), authenticateToken, (req, re
 // GitHub Integration
 app.post('/api/github/clone', authenticateToken, async (req, res) => {
   try {
-    const { repoUrl, projectName } = req.body;
+    const { repoUrl, projectName, ghToken } = req.body || {};
+    if (!repoUrl || !projectName) return res.status(400).json({ error: 'repoUrl and projectName are required' });
+
     const git = simpleGit();
-    
-    // Clone repository
+
+    // Build authenticated URL for private repos when PAT is provided
+    let url = repoUrl;
+    if (ghToken && repoUrl.startsWith('https://')) {
+      try {
+        const u = new URL(repoUrl);
+        url = `https://${encodeURIComponent(ghToken)}@${u.host}${u.pathname}`;
+      } catch {
+        if (repoUrl.startsWith('https://github.com/')) {
+          url = repoUrl.replace('https://', `https://${encodeURIComponent(ghToken)}@`);
+        }
+      }
+    }
+
     const clonePath = `projects/${projectName}`;
-    await git.clone(repoUrl, clonePath);
-    
+    if (!fs.existsSync('projects')) fs.mkdirSync('projects', { recursive: true });
+
+    await git.clone(url, clonePath, ['--depth', '1']);
+
     res.json({ message: 'Repository cloned successfully', path: clonePath });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to clone repository', details: error.message });
+    const msg = (error && error.message) ? error.message : String(error);
+    if (/Authentication failed|access denied|authorization failed/i.test(msg)) {
+      return res.status(401).json({ error: 'Authentication failed for private repository' });
+    }
+    res.status(500).json({ error: 'Failed to clone repository', details: msg });
   }
 });
 

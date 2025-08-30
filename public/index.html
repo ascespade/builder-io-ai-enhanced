@@ -241,6 +241,13 @@
             font-size: 1.5em;
         }
 
+        .feature-list { margin-left: 20px; margin-top: 10px; }
+        .select-input { width: 100%; padding: 12px; border: 2px solid #e9ecef; border-radius: 8px; }
+        .login-overlay { position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; display: none; align-items: center; justify-content: center; background-color: rgba(0,0,0,0.5); backdrop-filter: blur(6px); }
+        .login-card { background: white; padding: 30px; border-radius: 15px; width: 90%; max-width: 420px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); }
+        .header-actions { display: flex; justify-content: flex-end; gap: 10px; }
+        .hidden { display: none !important; }
+
         .form-group {
             margin-bottom: 20px;
         }
@@ -318,6 +325,9 @@
         <div class="header">
             <h1><i class="fas fa-cube"></i> Builder.io Ultimate</h1>
             <p>Professional Website Builder with GitHub Integration</p>
+            <div class="header-actions">
+                <button id="logout-button" class="btn btn-secondary hidden">Logout</button>
+            </div>
         </div>
 
         <div class="main-content">
@@ -453,7 +463,7 @@
                         <h4>GitHub Integration</h4>
                         <p>Clone repositories directly from GitHub and start building immediately.</p>
                         <p><strong>Features:</strong></p>
-                        <ul style="margin-left: 20px; margin-top: 10px;">
+                        <ul class="feature-list">
                             <li>Clone public and private repositories</li>
                             <li>Automatic project setup</li>
                             <li>Real-time collaboration</li>
@@ -525,7 +535,7 @@
                 </div>
                 <div class="form-group">
                     <label for="component-type">Type</label>
-                    <select id="component-type" style="width: 100%; padding: 12px; border: 2px solid #e9ecef; border-radius: 8px;">
+                    <select id="component-type" class="select-input">
                         <option value="html">HTML</option>
                         <option value="react">React</option>
                         <option value="vue">Vue</option>
@@ -566,6 +576,26 @@
         </div>
     </div>
 
+    <!-- Login Overlay -->
+    <div id="login-overlay" class="login-overlay">
+        <div class="login-card">
+            <h3><i class="fas fa-unlock"></i> Sign in</h3>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="login-email">Email</label>
+                    <input type="email" id="login-email" required value="admin@builder.io">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Login</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="/socket.io/socket.io.js"></script>
     <script>
         let currentUser = null;
@@ -584,17 +614,10 @@
             authToken = savedToken;
             checkAuth();
         } else {
-            showLoginPrompt();
+            document.getElementById('login-overlay').style.display = 'flex';
         }
 
-        function showLoginPrompt() {
-            const email = prompt('Enter your email:');
-            const password = prompt('Enter your password:');
-            
-            if (email && password) {
-                login(email, password);
-            }
-        }
+
 
         async function login(email, password) {
             try {
@@ -611,15 +634,15 @@
                     authToken = data.token;
                     currentUser = data.user;
                     localStorage.setItem('authToken', authToken);
+                    document.getElementById('login-overlay').style.display = 'none';
+                    document.getElementById('logout-button').classList.remove('hidden');
                     loadDashboard();
                 } else {
                     alert('Login failed. Please check your credentials.');
-                    showLoginPrompt();
                 }
             } catch (error) {
                 console.error('Login error:', error);
                 alert('Login failed. Please try again.');
-                showLoginPrompt();
             }
         }
 
@@ -632,15 +655,16 @@
                 });
 
                 if (response.ok) {
+                    document.getElementById('logout-button').classList.remove('hidden');
                     loadDashboard();
                 } else {
                     localStorage.removeItem('authToken');
-                    showLoginPrompt();
+                    document.getElementById('login-overlay').style.display = 'flex';
                 }
             } catch (error) {
                 console.error('Auth check error:', error);
                 localStorage.removeItem('authToken');
-                showLoginPrompt();
+                document.getElementById('login-overlay').style.display = 'flex';
             }
         }
 
@@ -1054,14 +1078,23 @@
             alert(`Edit project ${id} - Feature coming soon!`);
         }
 
-        function deleteProject(id) {
-            if (confirm('Are you sure you want to delete this project?')) {
-                const index = projects.findIndex(p => p.id === id);
-                if (index > -1) {
-                    projects.splice(index, 1);
+        async function deleteProject(id) {
+            if (!confirm('Are you sure you want to delete this project?')) return;
+            try {
+                const response = await fetch(`/api/projects/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                if (response.ok) {
+                    projects = projects.filter(p => p.id !== id);
                     displayProjects(projects);
                     updateStats();
+                } else {
+                    alert('Failed to delete project');
                 }
+            } catch (e) {
+                console.error(e);
+                alert('Error deleting project');
             }
         }
 
@@ -1069,14 +1102,23 @@
             alert(`Edit page ${id} - Feature coming soon!`);
         }
 
-        function deletePage(id) {
-            if (confirm('Are you sure you want to delete this page?')) {
-                const index = pages.findIndex(p => p.id === id);
-                if (index > -1) {
-                    pages.splice(index, 1);
+        async function deletePage(id) {
+            if (!confirm('Are you sure you want to delete this page?')) return;
+            try {
+                const response = await fetch(`/api/pages/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                if (response.ok) {
+                    pages = pages.filter(p => p.id !== id);
                     displayPages(pages);
                     updateStats();
+                } else {
+                    alert('Failed to delete page');
                 }
+            } catch (e) {
+                console.error(e);
+                alert('Error deleting page');
             }
         }
 
@@ -1084,34 +1126,68 @@
             alert(`Edit component ${id} - Feature coming soon!`);
         }
 
-        function deleteComponent(id) {
-            if (confirm('Are you sure you want to delete this component?')) {
-                const index = components.findIndex(c => c.id === id);
-                if (index > -1) {
-                    components.splice(index, 1);
+        async function deleteComponent(id) {
+            if (!confirm('Are you sure you want to delete this component?')) return;
+            try {
+                const response = await fetch(`/api/components/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                if (response.ok) {
+                    components = components.filter(c => c.id !== id);
                     displayComponents(components);
                     updateStats();
+                } else {
+                    alert('Failed to delete component');
                 }
+            } catch (e) {
+                console.error(e);
+                alert('Error deleting component');
             }
         }
 
         function downloadMedia(id) {
-            alert(`Download media ${id} - Feature coming soon!`);
+            window.open(`/api/media/${id}/download?token=${authToken}`, '_blank');
         }
 
-        function deleteMedia(id) {
-            if (confirm('Are you sure you want to delete this media file?')) {
-                const index = media.findIndex(m => m.id === id);
-                if (index > -1) {
-                    media.splice(index, 1);
+        async function deleteMedia(id) {
+            if (!confirm('Are you sure you want to delete this media file?')) return;
+            try {
+                const response = await fetch(`/api/media/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                if (response.ok) {
+                    media = media.filter(m => m.id !== id);
                     displayMedia(media);
                     updateStats();
+                } else {
+                    alert('Failed to delete media');
                 }
+            } catch (e) {
+                console.error(e);
+                alert('Error deleting media');
             }
         }
 
         // Initialize dashboard
         showSection('dashboard');
+
+        // Login form handler
+        document.getElementById('login-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            login(email, password);
+        });
+
+        // Logout button
+        document.getElementById('logout-button').addEventListener('click', () => {
+            localStorage.removeItem('authToken');
+            authToken = null;
+            document.getElementById('login-overlay').style.display = 'flex';
+            document.getElementById('logout-button').classList.add('hidden');
+        });
     </script>
 </body>
 </html>

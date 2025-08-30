@@ -340,6 +340,19 @@
         .palette-list { margin-top:10px; }
         .palette-item { padding:8px 10px; border-radius:8px; cursor:pointer; color:#c9d1d9; }
         .palette-item:hover { background:#0d1117; }
+        .ai-panel { position:absolute; right:0; top:0; bottom:0; width:340px; background:#0d1117; border-left:1px solid #21262d; border-radius:0 12px 12px 0; display:none; grid-template-rows:auto 1fr auto; padding:0; }
+        .ai-header { display:flex; align-items:center; justify-content:space-between; padding:10px; border-bottom:1px solid #21262d; color:#c9d1d9; }
+        .ai-messages { padding:10px; overflow:auto; display:flex; flex-direction:column; gap:8px; }
+        .ai-msg { padding:8px 10px; border-radius:8px; font-size:13px; line-height:1.5; }
+        .ai-user { align-self:flex-end; background:#1f6feb; color:#fff; }
+        .ai-assistant { align-self:flex-start; background:#161b22; color:#c9d1d9; border:1px solid #21262d; }
+        .ai-input { display:flex; gap:8px; padding:10px; border-top:1px solid #21262d; }
+        .ai-input textarea { flex:1; resize:none; height:56px; background:#0d1117; color:#c9d1d9; border:1px solid #30363d; border-radius:8px; padding:8px; }
+        .ai-input button { background:#1f6feb; color:#fff; border:0; border-radius:8px; padding:10px 14px; cursor:pointer; }
+        .ai-tools { display:flex; gap:6px; }
+        .ai-tools button { background:#161b22; color:#c9d1d9; border:1px solid #21262d; border-radius:6px; padding:6px 8px; cursor:pointer; font-size:12px; }
+        .ai-config { display:flex; gap:6px; align-items:center; }
+        .ai-config input { width:160px; background:#0d1117; color:#c9d1d9; border:1px solid #30363d; border-radius:6px; padding:6px 8px; }
 
         /* IDE styles */
         .ide-shell { display: grid; grid-template-rows: auto 1fr; gap: 15px; }
@@ -563,6 +576,7 @@
                             <div class="activity-btn" id="btn-search" title="Search"><i class="fas fa-search"></i></div>
                             <div class="activity-btn" id="btn-git" title="Source Control"><i class="fas fa-code-branch"></i></div>
                             <div class="activity-btn" id="btn-run" title="Run"><i class="fas fa-play"></i></div>
+                            <div class="activity-btn" id="btn-ai" title="AI Agent"><i class="fas fa-robot"></i></div>
                             <div class="activity-btn" id="btn-ext" title="Extensions"><i class="fas fa-th-large"></i></div>
                         </div>
                         <div class="explorer">
@@ -571,9 +585,28 @@
                         </div>
                         <div class="editor-wrap">
                             <div id="editor-tabs" class="editor-tabs"><div class="tab active">untitled.html</div></div>
-                            <div id="monaco-container" class="monaco-holder"></div>
+                            <div id="monaco-container" class="monaco-holder" style="position:relative;"></div>
                             <div id="preview-pane" class="preview-pane">
                                 <iframe id="preview-frame" style="width:100%; height:260px; border:0;"></iframe>
+                            </div>
+                            <div id="ai-panel" class="ai-panel">
+                                <div class="ai-header">
+                                    <div class="ai-config">
+                                        <i class="fas fa-robot"></i>
+                                        <span>AI</span>
+                                        <input id="gemini-key" placeholder="Gemini API Key" type="password">
+                                        <button id="save-gemini-key" class="btn-secondary" style="padding:6px 10px;">Save</button>
+                                    </div>
+                                    <div class="ai-tools">
+                                        <button id="ai-explain">Explain</button>
+                                        <button id="ai-fix">Fix Errors</button>
+                                    </div>
+                                </div>
+                                <div id="ai-messages" class="ai-messages"></div>
+                                <div class="ai-input">
+                                    <textarea id="ai-input" placeholder="Ask the AI to help..."></textarea>
+                                    <button id="ai-send">Send</button>
+                                </div>
                             </div>
                         </div>
                         <div class="status-bar">
@@ -1519,6 +1552,72 @@
             }
         };
         // ===== End MONACO IDE logic =====
+
+        // ===== AI Agent logic (Gemini) =====
+        const aiPanel = document.getElementById('ai-panel');
+        const aiMessagesEl = document.getElementById('ai-messages');
+        const aiInput = document.getElementById('ai-input');
+        const btnAI = document.getElementById('btn-ai');
+        const geminiKeyInput = document.getElementById('gemini-key');
+        const saveKeyBtn = document.getElementById('save-gemini-key');
+        let aiMessages = [];
+
+        function loadGeminiKey(){ const k = localStorage.getItem('GEMINI_API_KEY'); if(k){ geminiKeyInput.value = k; } }
+        loadGeminiKey();
+        saveKeyBtn.addEventListener('click',()=>{ localStorage.setItem('GEMINI_API_KEY', geminiKeyInput.value.trim()); alert('Saved'); });
+
+        btnAI?.addEventListener('click', ()=>{
+            aiPanel.style.display = aiPanel.style.display === 'none' || aiPanel.style.display === '' ? 'grid' : 'none';
+        });
+
+        function renderAIMessages(){
+            aiMessagesEl.innerHTML = aiMessages.map(m=>`<div class="ai-msg ${m.role==='user'?'ai-user':'ai-assistant'}">${m.html}</div>`).join('');
+            aiMessagesEl.scrollTop = aiMessagesEl.scrollHeight;
+        }
+        function escapeHtml(s){ return s.replace(/[&<>]/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c])); }
+        function mdToHtml(text){
+            const codeBlock = text.match(/```[\s\S]*?```/g);
+            let html = escapeHtml(text).replace(/\n/g,'<br>');
+            if(codeBlock){ html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (m,lang,code)=>`<pre style="background:#0b1220;border:1px solid #21262d;color:#e2e8f0;padding:8px;border-radius:8px;overflow:auto;"><code>${escapeHtml(code)}</code></pre>`);}
+            return html;
+        }
+        async function aiSend(prompt, opts={ includeEditor:true, intent:'ask' }){
+            await initMonaco();
+            const lang = currentLanguage;
+            const name = openFile?.name || 'untitled';
+            const content = opts.includeEditor ? monacoEditor.getValue() : '';
+            const sys = `You are a senior IDE assistant. Be proactive. If intent is fix, return only corrected ${lang} code for ${name} inside a single markdown code block. If intent is explain, provide concise explanation. If intent is ask, help briefly. Avoid asking clarifying questions unless necessary.`;
+            const body = {
+                system: sys,
+                messages: [
+                    { role:'user', content: `File: ${name}\nLanguage: ${lang}\nIntent: ${opts.intent}\nCurrent content:\n${content}\n\nUser request:\n${prompt}` }
+                ]
+            };
+            const headers = { 'Content-Type':'application/json', 'Authorization': `Bearer ${authToken}` };
+            const key = localStorage.getItem('GEMINI_API_KEY') || '';
+            if(key) headers['x-gemini-key'] = key;
+            aiMessages.push({ role:'user', html: mdToHtml(prompt) });
+            renderAIMessages();
+            const res = await fetch('/api/ai/gemini', { method:'POST', headers, body: JSON.stringify(body) });
+            if(!res.ok){ const t = await res.text(); aiMessages.push({ role:'assistant', html: mdToHtml('Error: '+t) }); renderAIMessages(); return; }
+            const data = await res.json();
+            const text = data.text || '';
+            aiMessages.push({ role:'assistant', html: mdToHtml(text) });
+            renderAIMessages();
+            if(opts.intent==='fix'){
+                const match = text.match(/```[\s\S]*?```/);
+                const code = match ? (match[0].replace(/```[\w]*\n?/, '').replace(/```$/, '')) : text;
+                monacoEditor.setValue(code);
+                const pane = document.getElementById('preview-pane');
+                const iframe = document.getElementById('preview-frame');
+                pane.style.display = 'block';
+                const doc = iframe.contentDocument || iframe.contentWindow.document; doc.open(); doc.write(code); doc.close();
+            }
+        }
+        document.getElementById('ai-send')?.addEventListener('click',()=>{ const v = aiInput.value.trim(); if(!v) return; aiInput.value=''; aiSend(v, { includeEditor:true, intent:'ask' }); });
+        document.getElementById('ai-explain')?.addEventListener('click',()=>{ aiSend('Explain the current file briefly.', { includeEditor:true, intent:'explain' }); });
+        document.getElementById('ai-fix')?.addEventListener('click',()=>{ aiSend('Fix all issues and produce complete corrected code.', { includeEditor:true, intent:'fix' }); });
+        // ===== End AI Agent logic =====
 
         // File upload
         async function uploadFile(input) {

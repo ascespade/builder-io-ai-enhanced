@@ -234,23 +234,45 @@ app.post('/api/github/clone', authenticateToken, async (req, res) => {
 
     const git = simpleGit();
 
-    // Build authenticated URL for private repos when PAT is provided
-    let url = repoUrl;
-    if (ghToken && repoUrl.startsWith('https://')) {
+    // Normalize URL: ensure .git suffix
+    const ensureGit = (u) => (u.endsWith('.git') ? u : `${u}.git`);
+    const baseUrl = ensureGit(repoUrl);
+
+    // Build candidate URLs for private repos when PAT is provided
+    const candidates = [];
+    if (ghToken) {
       try {
-        const u = new URL(repoUrl);
-        url = `https://${encodeURIComponent(ghToken)}@${u.host}${u.pathname}`;
+        const u = new URL(baseUrl);
+        const hostPath = `${u.host}${u.pathname}`;
+        candidates.push(`https://${encodeURIComponent(ghToken)}@${hostPath}`); // token as username
+        candidates.push(`https://x-access-token:${encodeURIComponent(ghToken)}@${hostPath}`); // token as password
       } catch {
-        if (repoUrl.startsWith('https://github.com/')) {
-          url = repoUrl.replace('https://', `https://${encodeURIComponent(ghToken)}@`);
-        }
+        candidates.push(baseUrl.replace('https://', `https://${encodeURIComponent(ghToken)}@`));
+        const noProto = baseUrl.replace('https://', '');
+        candidates.push(`https://x-access-token:${encodeURIComponent(ghToken)}@${noProto}`);
       }
     }
+    if (!ghToken) candidates.push(baseUrl);
 
     const clonePath = `projects/${projectName}`;
     if (!fs.existsSync('projects')) fs.mkdirSync('projects', { recursive: true });
 
-    await git.clone(url, clonePath, ['--depth', '1']);
+    let lastErr = null;
+    let success = false;
+    for (const u of candidates.length ? candidates : [baseUrl]) {
+      try {
+        await git.clone(u, clonePath, ['--depth', '1']);
+        success = true;
+        break;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    if (!success) {
+      const msg = lastErr && lastErr.message ? lastErr.message : 'Clone failed';
+      return res.status(/Authentication failed|access denied|authorization failed/i.test(msg) ? 401 : 500)
+        .json({ error: 'Failed to clone repository', details: msg });
+    }
 
     const project = {
       id: uuidv4(),

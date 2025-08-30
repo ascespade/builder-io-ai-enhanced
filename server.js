@@ -161,6 +161,7 @@ app.post('/api/projects', authenticateToken, (req, res) => {
     updatedAt: new Date().toISOString()
   };
   projects.push(project);
+  saveAll();
   res.json(project);
 });
 
@@ -180,6 +181,7 @@ app.post('/api/pages', authenticateToken, (req, res) => {
     updatedAt: new Date().toISOString()
   };
   pages.push(page);
+  saveAll();
   res.json(page);
 });
 
@@ -199,6 +201,7 @@ app.post('/api/components', authenticateToken, (req, res) => {
     updatedAt: new Date().toISOString()
   };
   components.push(component);
+  saveAll();
   res.json(component);
 });
 
@@ -219,6 +222,7 @@ app.post('/api/media/upload', upload.single('file'), authenticateToken, (req, re
     uploadedAt: new Date().toISOString()
   };
   media.push(mediaItem);
+  saveAll();
   res.json(mediaItem);
 });
 
@@ -248,6 +252,7 @@ app.delete('/api/projects/:id', authenticateToken, (req, res) => {
   const idx = projects.findIndex(p => p.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Project not found' });
   projects.splice(idx, 1);
+  saveAll();
   res.json({ success: true });
 });
 
@@ -255,6 +260,7 @@ app.delete('/api/pages/:id', authenticateToken, (req, res) => {
   const idx = pages.findIndex(p => p.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Page not found' });
   pages.splice(idx, 1);
+  saveAll();
   res.json({ success: true });
 });
 
@@ -262,6 +268,7 @@ app.delete('/api/components/:id', authenticateToken, (req, res) => {
   const idx = components.findIndex(c => c.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Component not found' });
   components.splice(idx, 1);
+  saveAll();
   res.json({ success: true });
 });
 
@@ -277,6 +284,7 @@ app.delete('/api/media/:id', authenticateToken, (req, res) => {
     // ignore unlink errors in demo
   }
   media.splice(idx, 1);
+  saveAll();
   res.json({ success: true });
 });
 
@@ -286,6 +294,53 @@ app.get('/api/media/:id/download', authenticateToken, (req, res) => {
   if (!item) return res.status(404).json({ error: 'Media not found' });
   const absPath = path.resolve(item.path);
   res.download(absPath, item.originalName);
+});
+
+// Update routes
+app.put('/api/projects/:id', authenticateToken, (req, res) => {
+  const project = projects.find(p => p.id === req.params.id);
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+  const { name, description, githubUrl } = req.body;
+  if (name !== undefined) project.name = name;
+  if (description !== undefined) project.description = description;
+  if (githubUrl !== undefined) project.githubUrl = githubUrl;
+  project.updatedAt = new Date().toISOString();
+  saveAll();
+  res.json(project);
+});
+
+app.put('/api/pages/:id', authenticateToken, (req, res) => {
+  const page = pages.find(p => p.id === req.params.id);
+  if (!page) return res.status(404).json({ error: 'Page not found' });
+  const { title, content, projectId } = req.body;
+  if (title !== undefined) page.title = title;
+  if (content !== undefined) page.content = content;
+  if (projectId !== undefined) page.projectId = projectId;
+  page.updatedAt = new Date().toISOString();
+  saveAll();
+  res.json(page);
+});
+
+app.put('/api/components/:id', authenticateToken, (req, res) => {
+  const component = components.find(c => c.id === req.params.id);
+  if (!component) return res.status(404).json({ error: 'Component not found' });
+  const { name, code, type } = req.body;
+  if (name !== undefined) component.name = name;
+  if (code !== undefined) component.code = code;
+  if (type !== undefined) component.type = type;
+  component.updatedAt = new Date().toISOString();
+  saveAll();
+  res.json(component);
+});
+
+// Stats
+app.get('/api/stats', authenticateToken, (req, res) => {
+  res.json({
+    projects: projects.length,
+    pages: pages.length,
+    components: components.length,
+    media: media.length
+  });
 });
 
 // Create necessary directories

@@ -570,6 +570,10 @@
     <script>
         let currentUser = null;
         let authToken = null;
+        let projects = [];
+        let pages = [];
+        let components = [];
+        let media = [];
 
         // Initialize Socket.IO
         const socket = io();
@@ -657,9 +661,10 @@
                         'Authorization': `Bearer ${authToken}`
                     }
                 });
-                
+
                 if (response.ok) {
-                    const projects = await response.json();
+                    const data = await response.json();
+                    projects = data;
                     displayProjects(projects);
                 }
             } catch (error) {
@@ -674,9 +679,10 @@
                         'Authorization': `Bearer ${authToken}`
                     }
                 });
-                
+
                 if (response.ok) {
-                    const pages = await response.json();
+                    const data = await response.json();
+                    pages = data;
                     displayPages(pages);
                 }
             } catch (error) {
@@ -691,9 +697,10 @@
                         'Authorization': `Bearer ${authToken}`
                     }
                 });
-                
+
                 if (response.ok) {
-                    const components = await response.json();
+                    const data = await response.json();
+                    components = data;
                     displayComponents(components);
                 }
             } catch (error) {
@@ -708,9 +715,10 @@
                         'Authorization': `Bearer ${authToken}`
                     }
                 });
-                
+
                 if (response.ok) {
-                    const media = await response.json();
+                    const data = await response.json();
+                    media = data;
                     displayMedia(media);
                 }
             } catch (error) {
@@ -1107,4 +1115,3 @@
     </script>
 </body>
 </html>
-      

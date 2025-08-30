@@ -252,7 +252,19 @@ app.post('/api/github/clone', authenticateToken, async (req, res) => {
 
     await git.clone(url, clonePath, ['--depth', '1']);
 
-    res.json({ message: 'Repository cloned successfully', path: clonePath });
+    const project = {
+      id: uuidv4(),
+      name: projectName,
+      description: `Cloned from ${repoUrl}`,
+      githubUrl: repoUrl,
+      path: clonePath,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    projects.push(project);
+    saveAll();
+
+    res.json({ message: 'Repository cloned successfully', path: clonePath, project });
   } catch (error) {
     const msg = (error && error.message) ? error.message : String(error);
     if (/Authentication failed|access denied|authorization failed/i.test(msg)) {

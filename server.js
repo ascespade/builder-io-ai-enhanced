@@ -39,6 +39,7 @@ app.use(helmet({
 }));
 
 app.use(express.static('public'));
+app.use('/uploads', express.static('uploads'));
 
 // In-memory data storage
 const users = [
@@ -74,7 +75,13 @@ const upload = multer({ storage: storage });
 // Authentication middleware
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  let token = null;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  }
+  if (!token && req.query && req.query.token) {
+    token = req.query.token;
+  }
 
   if (!token) {
     return res.status(401).json({ error: 'Access token required' });
@@ -200,6 +207,56 @@ app.post('/api/github/clone', authenticateToken, async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Failed to clone repository', details: error.message });
   }
+});
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
+// Delete routes
+app.delete('/api/projects/:id', authenticateToken, (req, res) => {
+  const idx = projects.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Project not found' });
+  projects.splice(idx, 1);
+  res.json({ success: true });
+});
+
+app.delete('/api/pages/:id', authenticateToken, (req, res) => {
+  const idx = pages.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Page not found' });
+  pages.splice(idx, 1);
+  res.json({ success: true });
+});
+
+app.delete('/api/components/:id', authenticateToken, (req, res) => {
+  const idx = components.findIndex(c => c.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Component not found' });
+  components.splice(idx, 1);
+  res.json({ success: true });
+});
+
+app.delete('/api/media/:id', authenticateToken, (req, res) => {
+  const idx = media.findIndex(m => m.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Media not found' });
+  const item = media[idx];
+  try {
+    if (item && item.path && fs.existsSync(item.path)) {
+      fs.unlinkSync(item.path);
+    }
+  } catch (e) {
+    // ignore unlink errors in demo
+  }
+  media.splice(idx, 1);
+  res.json({ success: true });
+});
+
+// Download media
+app.get('/api/media/:id/download', authenticateToken, (req, res) => {
+  const item = media.find(m => m.id === req.params.id);
+  if (!item) return res.status(404).json({ error: 'Media not found' });
+  const absPath = path.resolve(item.path);
+  res.download(absPath, item.originalName);
 });
 
 // Create necessary directories

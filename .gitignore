@@ -1,0 +1,46 @@
+# Node
+node_modules/
+**/node_modules/
+.pnpm-store/
+.pnp.*
+
+# Next.js
+.next/
+out/
+.next-standalone/
+
+# Env
+.env*
+!.env.example
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Uploads and generated
+uploads/
+projects/
+
+# Locks
+package-lock.json
+pnpm-lock.yaml
+
+# Core dumps
+core
+
+# Compiled
+*.swc
+*.node
+
+# Build cache
+.cache/

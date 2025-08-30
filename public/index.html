@@ -1353,14 +1353,20 @@
                 });
 
                 if (response.ok) {
-                    await response.json();
+                    const result = await response.json();
+                    if (result && result.project) {
+                        projects.unshift(result.project);
+                        displayProjects(projects);
+                        updateStats();
+                    }
                     alert('Repository cloned successfully!');
                     closeModal('clone-repo');
                     document.getElementById('clone-form').reset();
                     ghTokenWrap.style.display = 'none';
                 } else {
-                    const error = await response.json().catch(()=>({ error:'Unknown error'}));
-                    alert(`Failed to clone repository: ${error.error || 'Unknown error'}`);
+                    let errorText = 'Unknown error';
+                    try { const err = await response.json(); errorText = err.error || err.details || errorText; } catch { errorText = await response.text(); }
+                    alert(`Failed to clone repository: ${errorText}`);
                 }
             } catch (error) {
                 console.error('Error cloning repository:', error);

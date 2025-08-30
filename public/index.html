@@ -613,6 +613,88 @@
         </div>
     </div>
 
+    <!-- Edit Project Modal -->
+    <div id="edit-project" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('edit-project')">&times;</span>
+            <h3><i class="fas fa-edit"></i> Edit Project</h3>
+            <form id="edit-project-form">
+                <input type="hidden" id="edit-project-id">
+                <div class="form-group">
+                    <label for="edit-project-name">Project Name</label>
+                    <input type="text" id="edit-project-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-project-description">Description</label>
+                    <textarea id="edit-project-description" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="edit-github-url">GitHub URL (Optional)</label>
+                    <input type="url" id="edit-github-url" placeholder="https://github.com/user/repo">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('edit-project')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Page Modal -->
+    <div id="edit-page" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('edit-page')">&times;</span>
+            <h3><i class="fas fa-edit"></i> Edit Page</h3>
+            <form id="edit-page-form">
+                <input type="hidden" id="edit-page-id">
+                <div class="form-group">
+                    <label for="edit-page-title">Page Title</label>
+                    <input type="text" id="edit-page-title" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-page-content">Content</label>
+                    <textarea id="edit-page-content" rows="5"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('edit-page')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Component Modal -->
+    <div id="edit-component" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('edit-component')">&times;</span>
+            <h3><i class="fas fa-edit"></i> Edit Component</h3>
+            <form id="edit-component-form">
+                <input type="hidden" id="edit-component-id">
+                <div class="form-group">
+                    <label for="edit-component-name">Component Name</label>
+                    <input type="text" id="edit-component-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-component-type">Type</label>
+                    <select id="edit-component-type" class="select-input">
+                        <option value="html">HTML</option>
+                        <option value="react">React</option>
+                        <option value="vue">Vue</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="edit-component-code">Code</label>
+                    <textarea id="edit-component-code" rows="8"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('edit-component')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Clone Repository Modal -->
     <div id="clone-repo" class="modal">
         <div class="modal-content">
@@ -1134,7 +1216,13 @@
 
         // Placeholder functions for edit/delete operations
         function editProject(id) {
-            alert(`Edit project ${id} - Feature coming soon!`);
+            const p = projects.find(x => x.id === id);
+            if (!p) return;
+            document.getElementById('edit-project-id').value = p.id;
+            document.getElementById('edit-project-name').value = p.name || '';
+            document.getElementById('edit-project-description').value = p.description || '';
+            document.getElementById('edit-github-url').value = p.githubUrl || '';
+            showModal('edit-project');
         }
 
         async function deleteProject(id) {
@@ -1158,7 +1246,12 @@
         }
 
         function editPage(id) {
-            alert(`Edit page ${id} - Feature coming soon!`);
+            const pg = pages.find(x => x.id === id);
+            if (!pg) return;
+            document.getElementById('edit-page-id').value = pg.id;
+            document.getElementById('edit-page-title').value = pg.title || '';
+            document.getElementById('edit-page-content').value = pg.content || '';
+            showModal('edit-page');
         }
 
         async function deletePage(id) {
@@ -1182,7 +1275,13 @@
         }
 
         function editComponent(id) {
-            alert(`Edit component ${id} - Feature coming soon!`);
+            const c = components.find(x => x.id === id);
+            if (!c) return;
+            document.getElementById('edit-component-id').value = c.id;
+            document.getElementById('edit-component-name').value = c.name || '';
+            document.getElementById('edit-component-type').value = c.type || 'html';
+            document.getElementById('edit-component-code').value = c.code || '';
+            showModal('edit-component');
         }
 
         async function deleteComponent(id) {
@@ -1246,6 +1345,63 @@
             authToken = null;
             document.getElementById('login-overlay').style.display = 'flex';
             document.getElementById('logout-button').classList.add('hidden');
+        });
+
+        // Edit submits
+        document.getElementById('edit-project-form')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('edit-project-id').value;
+            const payload = {
+                name: document.getElementById('edit-project-name').value,
+                description: document.getElementById('edit-project-description').value,
+                githubUrl: document.getElementById('edit-github-url').value
+            };
+            const res = await fetch(`/api/projects/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify(payload) });
+            if (res.ok) {
+                const updated = await res.json();
+                const idx = projects.findIndex(p => p.id === id);
+                if (idx > -1) projects[idx] = updated;
+                displayProjects(projects);
+                updateStats();
+                closeModal('edit-project');
+            } else alert('Failed to update project');
+        });
+
+        document.getElementById('edit-page-form')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('edit-page-id').value;
+            const payload = {
+                title: document.getElementById('edit-page-title').value,
+                content: document.getElementById('edit-page-content').value
+            };
+            const res = await fetch(`/api/pages/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify(payload) });
+            if (res.ok) {
+                const updated = await res.json();
+                const idx = pages.findIndex(p => p.id === id);
+                if (idx > -1) pages[idx] = updated;
+                displayPages(pages);
+                updateStats();
+                closeModal('edit-page');
+            } else alert('Failed to update page');
+        });
+
+        document.getElementById('edit-component-form')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('edit-component-id').value;
+            const payload = {
+                name: document.getElementById('edit-component-name').value,
+                type: document.getElementById('edit-component-type').value,
+                code: document.getElementById('edit-component-code').value
+            };
+            const res = await fetch(`/api/components/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify(payload) });
+            if (res.ok) {
+                const updated = await res.json();
+                const idx = components.findIndex(c => c.id === id);
+                if (idx > -1) components[idx] = updated;
+                displayComponents(components);
+                updateStats();
+                closeModal('edit-component');
+            } else alert('Failed to update component');
         });
     </script>
 </body>

@@ -1321,175 +1321,181 @@
             }
         });
 
-        // ===== IDE logic =====
-        let ideNodes = [];
-        let ideSelectedId = null;
+        // ===== MONACO IDE logic =====
+        let monacoEditor = null;
+        let currentTheme = 'vs-dark';
+        let currentLanguage = 'html';
+        let openFile = null; // { id, type: 'component'|'page'|'untitled', name, language }
 
-        function uid() { return Math.random().toString(36).slice(2, 9); }
-
-        function defaultNode(type) {
-            const base = { id: uid(), type, text: '', src: '', styles: { color: '#333333', background: '', fontSize: 16, padding: 12, width: '', height: '' } };
-            if (type === 'heading') { base.text = 'Heading'; base.styles.fontSize = 28; base.styles.fontWeight = '700'; }
-            if (type === 'text') { base.text = 'Lorem ipsum dolor sit amet'; }
-            if (type === 'button') { base.text = 'Click me'; base.styles.background = '#667eea'; base.styles.color = '#ffffff'; base.styles.padding = 12; }
-            if (type === 'image') { base.src = 'https://picsum.photos/600/300'; base.styles.width = 600; base.styles.height = 300; }
-            if (type === 'section') { base.text = ''; base.styles.padding = 24; base.styles.background = '#ffffff'; }
-            return base;
+        function renderTabs() {
+            const tabs = document.getElementById('editor-tabs');
+            const name = openFile ? openFile.name : 'untitled.html';
+            tabs.innerHTML = `<div class="tab active">${name}</div>`;
         }
 
-        function nodeToHTML(n) {
-            const style = [];
-            if (n.styles) {
-                if (n.styles.color) style.push(`color:${n.styles.color}`);
-                if (n.styles.background) style.push(`background:${n.styles.background}`);
-                if (n.styles.fontSize) style.push(`font-size:${n.styles.fontSize}px`);
-                if (n.styles.fontWeight) style.push(`font-weight:${n.styles.fontWeight}`);
-                if (n.styles.padding !== '' && n.styles.padding !== undefined) style.push(`padding:${n.styles.padding}px`);
-                if (n.styles.width) style.push(`width:${n.styles.width}px`);
-                if (n.styles.height) style.push(`height:${n.styles.height}px`);
-                style.push('border-radius:10px');
+        function buildExplorer() {
+            const ex = document.getElementById('ide-explorer');
+            const comps = components.map(c => `<div class="layer-item" data-type="component" data-id="${c.id}"><span><i class=\"fas fa-box\"></i> ${c.name}</span></div>`).join('');
+            const pgs = pages.map(p => `<div class="layer-item" data-type="page" data-id="${p.id}"><span><i class=\"fas fa-file-alt\"></i> ${p.title}</span></div>`).join('');
+            ex.innerHTML = `<h4>Components</h4>${comps}<h4 style=\"margin-top:10px;\">Pages</h4>${pgs}`;
+            ex.querySelectorAll('.layer-item').forEach(item => item.addEventListener('click', () => openItem(item.dataset.type, item.dataset.id)));
+        }
+
+        function pageJsonToHtml(content) {
+            try {
+                const data = JSON.parse(content||'{}');
+                const nodes = Array.isArray(data.nodes) ? data.nodes : [];
+                const toHTML = (n) => {
+                    const style = [];
+                    const s = n.styles||{};
+                    if (s.color) style.push(`color:${s.color}`);
+                    if (s.background) style.push(`background:${s.background}`);
+                    if (s.fontSize) style.push(`font-size:${s.fontSize}px`);
+                    if (s.fontWeight) style.push(`font-weight:${s.fontWeight}`);
+                    if (s.padding!=='' && s.padding!==undefined) style.push(`padding:${s.padding}px`);
+                    if (s.width) style.push(`width:${s.width}px`);
+                    if (s.height) style.push(`height:${s.height}px`);
+                    const styleStr = style.join(';');
+                    if (n.type==='heading') return `<h2 style="${styleStr}">${n.text||''}</h2>`;
+                    if (n.type==='text') return `<p style="${styleStr}">${n.text||''}</p>`;
+                    if (n.type==='button') return `<a href="#" style="display:inline-block;text-decoration:none;${styleStr}">${n.text||''}</a>`;
+                    if (n.type==='image') return `<img src="${n.src||''}" style="display:block;object-fit:cover;${styleStr}">`;
+                    if (n.type==='section') return `<section style="${styleStr}">${n.text||''}</section>`;
+                    return '';
+                };
+                return nodes.map(toHTML).join('\n');
+            } catch { return content||''; }
+        }
+
+        function updateDetails() {
+            const d = document.getElementById('file-details');
+            const nf = openFile || { name: 'untitled.html', type: 'untitled' };
+            d.innerHTML = `<p><strong>Name:</strong> ${nf.name}</p><p><strong>Type:</strong> ${nf.type}</p><p><strong>Language:</strong> ${currentLanguage}</p>`;
+        }
+
+        function initMonaco() {
+            return new Promise((resolve) => {
+                if (monacoEditor) return resolve();
+                require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.43.0/min/vs' } });
+                require(['vs/editor/editor.main'], function() {
+                    monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
+                        value: '<!-- Start coding here -->',
+                        language: currentLanguage,
+                        theme: currentTheme,
+                        automaticLayout: true,
+                        minimap: { enabled: true }
+                    });
+                    renderTabs();
+                    updateDetails();
+                    resolve();
+                });
+            });
+        }
+
+        async function openItem(type, id) {
+            await initMonaco();
+            if (type === 'component') {
+                const c = components.find(x => x.id === id);
+                if (!c) return;
+                openFile = { id: c.id, type: 'component', name: c.name, language: 'html' };
+                currentLanguage = 'html';
+                monacoEditor.setValue(c.code || '');
+                monaco.editor.setModelLanguage(monacoEditor.getModel(), currentLanguage);
+            } else if (type === 'page') {
+                const p = pages.find(x => x.id === id);
+                if (!p) return;
+                openFile = { id: p.id, type: 'page', name: p.title, language: 'html' };
+                currentLanguage = 'html';
+                monacoEditor.setValue(pageJsonToHtml(p.content || ''));
+                monaco.editor.setModelLanguage(monacoEditor.getModel(), currentLanguage);
             }
-            const styleStr = style.join(';');
-            if (n.type === 'heading') return `<h2 style="${styleStr}">${n.text || ''}</h2>`;
-            if (n.type === 'text') return `<p style="${styleStr}">${n.text || ''}</p>`;
-            if (n.type === 'button') return `<a href="#" style="display:inline-block; text-decoration:none; ${styleStr}">${n.text || ''}</a>`;
-            if (n.type === 'image') return `<img src="${n.src || ''}" style="display:block; object-fit:cover; ${styleStr}">`;
-            if (n.type === 'section') return `<section style="${styleStr}">${n.text || ''}</section>`;
-            return '';
+            renderTabs();
+            updateDetails();
         }
 
-        function renderCanvas() {
-            const wrap = document.getElementById('canvas-nodes');
-            wrap.innerHTML = '';
-            ideNodes.forEach(n => {
-                const el = document.createElement('div');
-                el.className = 'canvas-node' + (n.id === ideSelectedId ? ' selected' : '');
-                el.dataset.id = n.id;
-                el.innerHTML = `<div class="node-label">${n.type}</div>${nodeToHTML(n)}`;
-                el.addEventListener('click', (e) => { e.stopPropagation(); selectNode(n.id); });
-                wrap.appendChild(el);
-            });
-            renderLayers();
-            updateHtmlPreview();
-        }
-
-        function renderLayers() {
-            const list = document.getElementById('layers');
-            list.innerHTML = ideNodes.map(n => `<div class="layer-item ${n.id===ideSelectedId?'active':''}" data-id="${n.id}"><span>${n.type}</span><span>#${n.id.slice(-4)}</span></div>`).join('');
-            list.querySelectorAll('.layer-item').forEach(item => item.addEventListener('click', () => selectNode(item.dataset.id)));
-        }
-
-        function selectNode(id) {
-            ideSelectedId = id;
-            const n = ideNodes.find(x => x.id === id);
-            if (!n) return;
-            renderCanvas();
-            // bind inspector values
-            document.getElementById('prop-text').value = n.text || '';
-            document.getElementById('prop-src').value = n.src || '';
-            document.getElementById('prop-color').value = n.styles.color || '#333333';
-            document.getElementById('prop-bg').value = n.styles.background || '#ffffff';
-            document.getElementById('prop-size').value = n.styles.fontSize || 16;
-            document.getElementById('prop-padding').value = n.styles.padding || 0;
-            document.getElementById('prop-width').value = n.styles.width || '';
-            document.getElementById('prop-height').value = n.styles.height || '';
-        }
-
-        function updateHtmlPreview() {
-            const html = ideNodes.map(nodeToHTML).join('\n');
-            document.getElementById('html-preview').value = html;
-        }
-
-        // Palette drag & drop
-        document.getElementById('palette').querySelectorAll('.palette-item').forEach(el => {
-            el.addEventListener('dragstart', (e) => {
-                e.dataTransfer.setData('text/plain', el.dataset.type);
-            });
-        });
-        const canvas = document.getElementById('ide-canvas');
-        canvas.addEventListener('dragover', (e) => { e.preventDefault(); });
-        canvas.addEventListener('drop', (e) => {
-            e.preventDefault();
-            const type = e.dataTransfer.getData('text/plain');
-            if (!type) return;
-            const n = defaultNode(type);
-            ideNodes.push(n);
-            selectNode(n.id);
-            renderCanvas();
-        });
-        canvas.addEventListener('click', () => { ideSelectedId = null; renderCanvas(); });
-
-        // Inspector handlers
-        function bindInput(id, handler) {
-            const el = document.getElementById(id);
-            el.addEventListener('input', handler);
-            el.addEventListener('change', handler);
-        }
-        bindInput('prop-text', (e) => { const n = ideNodes.find(x=>x.id===ideSelectedId); if(n){ n.text = e.target.value; renderCanvas(); }});
-        bindInput('prop-src', (e) => { const n = ideNodes.find(x=>x.id===ideSelectedId); if(n){ n.src = e.target.value; renderCanvas(); }});
-        bindInput('prop-color', (e) => { const n = ideNodes.find(x=>x.id===ideSelectedId); if(n){ n.styles.color = e.target.value; renderCanvas(); }});
-        bindInput('prop-bg', (e) => { const n = ideNodes.find(x=>x.id===ideSelectedId); if(n){ n.styles.background = e.target.value; renderCanvas(); }});
-        bindInput('prop-size', (e) => { const n = ideNodes.find(x=>x.id===ideSelectedId); if(n){ n.styles.fontSize = parseInt(e.target.value||'16',10); renderCanvas(); }});
-        bindInput('prop-padding', (e) => { const n = ideNodes.find(x=>x.id===ideSelectedId); if(n){ n.styles.padding = parseInt(e.target.value||'0',10); renderCanvas(); }});
-        bindInput('prop-width', (e) => { const n = ideNodes.find(x=>x.id===ideSelectedId); if(n){ n.styles.width = e.target.value?parseInt(e.target.value,10):''; renderCanvas(); }});
-        bindInput('prop-height', (e) => { const n = ideNodes.find(x=>x.id===ideSelectedId); if(n){ n.styles.height = e.target.value?parseInt(e.target.value,10):''; renderCanvas(); }});
-
-        // Toolbar actions
-        document.getElementById('ide-new').addEventListener('click', () => { ideNodes = []; ideSelectedId = null; renderCanvas(); });
-        document.getElementById('ide-delete').addEventListener('click', () => { if(!ideSelectedId) return; ideNodes = ideNodes.filter(n=>n.id!==ideSelectedId); ideSelectedId=null; renderCanvas(); });
-        document.getElementById('ide-duplicate').addEventListener('click', () => { const n = ideNodes.find(x=>x.id===ideSelectedId); if(!n) return; const c = JSON.parse(JSON.stringify(n)); c.id = uid(); ideNodes.splice(ideNodes.indexOf(n)+1,0,c); selectNode(c.id); renderCanvas(); });
-        document.getElementById('ide-export').addEventListener('click', () => { updateHtmlPreview(); showSection('editor'); });
-        document.getElementById('copy-html').addEventListener('click', async () => { await navigator.clipboard.writeText(document.getElementById('html-preview').value); alert('HTML copied'); });
-
-        // Save as Page
-        document.getElementById('ide-save-page').addEventListener('click', () => { showModal('save-page-modal'); });
-        document.getElementById('save-page-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const title = document.getElementById('save-page-title').value;
-            const payload = { title, content: JSON.stringify({ nodes: ideNodes }), projectId: (projects[0]&&projects[0].id)||null };
-            const res = await fetch('/api/pages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify(payload) });
-            if (res.ok) { closeModal('save-page-modal'); alert('Saved page'); } else { alert('Failed to save page'); }
+        // Hook IDE toolbar
+        document.getElementById('ide-new').addEventListener('click', async () => {
+            await initMonaco();
+            openFile = null;
+            monacoEditor.setValue('');
+            renderTabs();
+            updateDetails();
         });
 
-        // Save as Component
-        document.getElementById('ide-save-component').addEventListener('click', () => { showModal('save-component-modal'); });
-        document.getElementById('save-component-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const name = document.getElementById('save-component-name').value;
-            const code = ideNodes.map(nodeToHTML).join('\n');
-            const payload = { name, type: 'html', code };
-            const res = await fetch('/api/components', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify(payload) });
-            if (res.ok) { closeModal('save-component-modal'); alert('Saved component'); } else { alert('Failed to save component'); }
-        });
-
-        // Open Page
         document.getElementById('ide-open').addEventListener('click', async () => {
             const res = await fetch('/api/pages', { headers: { 'Authorization': `Bearer ${authToken}` } });
             if (!res.ok) { alert('Failed to load pages'); return; }
             const list = await res.json();
             const container = document.getElementById('open-page-list');
-            container.innerHTML = list.map(p => `<div class="project-card"><h4>${p.title}</h4><p>${new Date(p.createdAt).toLocaleString()}</p><div class="project-actions"><button class="btn btn-primary btn-small" data-id="${p.id}"><i class=\"fas fa-folder-open\"></i> Open</button></div></div>`).join('');
-            container.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => loadPageIntoIDE(btn.dataset.id)));
+            container.innerHTML = list.map(p => `<div class=\"project-card\"><h4>${p.title}</h4><p>${new Date(p.createdAt).toLocaleString()}</p><div class=\"project-actions\"><button class=\"btn btn-primary btn-small\" data-id=\"${p.id}\"><i class=\"fas fa-folder-open\"></i> Open</button></div></div>`).join('');
+            container.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => { closeModal('open-page-modal'); openItem('page', btn.dataset.id); }));
             showModal('open-page-modal');
         });
 
-        async function loadPageIntoIDE(id) {
-            closeModal('open-page-modal');
-            const res = await fetch('/api/pages', { headers: { 'Authorization': `Bearer ${authToken}` } });
-            const list = await res.json();
-            const p = list.find(x => x.id === id);
-            if (!p) return;
-            try {
-                const data = JSON.parse(p.content || '{}');
-                if (Array.isArray(data.nodes)) { ideNodes = data.nodes; ideSelectedId = null; renderCanvas(); showSection('editor'); return; }
-            } catch {}
-            // fallback: load raw HTML as a single section
-            ideNodes = [{ id: uid(), type: 'section', text: p.content || '', src: '', styles: { background: '#ffffff', padding: 24 } }];
-            renderCanvas();
-            showSection('editor');
-        }
+        document.getElementById('ide-save-component').addEventListener('click', async () => {
+            await initMonaco();
+            const code = monacoEditor.getValue();
+            const name = openFile?.name || prompt('Component name', 'component');
+            if (!name) return;
+            if (openFile && openFile.type === 'component') {
+                const res = await fetch(`/api/components/${openFile.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ name, type: 'html', code }) });
+                if (res.ok) {
+                    const updated = await res.json();
+                    const idx = components.findIndex(c => c.id === updated.id);
+                    if (idx > -1) components[idx] = updated;
+                    buildExplorer();
+                    alert('Saved');
+                } else alert('Save failed');
+            } else {
+                const res = await fetch('/api/components', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ name, type: 'html', code }) });
+                if (res.ok) {
+                    const created = await res.json();
+                    components.unshift(created);
+                    openFile = { id: created.id, type: 'component', name: created.name, language: 'html' };
+                    buildExplorer();
+                    renderTabs();
+                    alert('Saved');
+                } else alert('Save failed');
+            }
+        });
 
-        // ===== End IDE logic =====
+        document.getElementById('ide-format').addEventListener('click', async () => {
+            await initMonaco();
+            monacoEditor.getAction('editor.action.formatDocument').run();
+        });
+
+        document.getElementById('ide-theme').addEventListener('click', async () => {
+            await initMonaco();
+            currentTheme = currentTheme === 'vs-dark' ? 'vs' : 'vs-dark';
+            monaco.editor.setTheme(currentTheme);
+        });
+
+        document.getElementById('ide-language').addEventListener('change', async (e) => {
+            await initMonaco();
+            currentLanguage = e.target.value;
+            monaco.editor.setModelLanguage(monacoEditor.getModel(), currentLanguage);
+            updateDetails();
+        });
+
+        document.getElementById('ide-preview').addEventListener('click', async () => {
+            await initMonaco();
+            const pane = document.getElementById('preview-pane');
+            const iframe = document.getElementById('preview-frame');
+            pane.style.display = pane.style.display === 'none' ? 'block' : 'none';
+            const html = monacoEditor.getValue();
+            const doc = iframe.contentDocument || iframe.contentWindow.document;
+            doc.open(); doc.write(html); doc.close();
+        });
+
+        // Ensure Monaco initializes when entering IDE
+        const __origShowSection = showSection;
+        showSection = function(name) {
+            __origShowSection(name);
+            if (name === 'editor') {
+                initMonaco().then(() => { buildExplorer(); renderTabs(); updateDetails(); });
+            }
+        };
+        // ===== End MONACO IDE logic =====
 
         // File upload
         async function uploadFile(input) {

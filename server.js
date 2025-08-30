@@ -51,10 +51,39 @@ const users = [
   }
 ];
 
-const projects = [];
-const pages = [];
-const components = [];
-const media = [];
+let projects = [];
+let pages = [];
+let components = [];
+let media = [];
+
+// Simple JSON persistence
+const DATA_DIR = 'data';
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+const dataFiles = {
+  projects: path.join(DATA_DIR, 'projects.json'),
+  pages: path.join(DATA_DIR, 'pages.json'),
+  components: path.join(DATA_DIR, 'components.json'),
+  media: path.join(DATA_DIR, 'media.json')
+};
+function readJson(fp) {
+  try { return JSON.parse(fs.readFileSync(fp, 'utf8')); } catch { return []; }
+}
+function writeJson(fp, data) {
+  try { fs.writeFileSync(fp, JSON.stringify(data, null, 2)); } catch {}
+}
+function loadAll() {
+  projects = readJson(dataFiles.projects);
+  pages = readJson(dataFiles.pages);
+  components = readJson(dataFiles.components);
+  media = readJson(dataFiles.media);
+}
+function saveAll() {
+  writeJson(dataFiles.projects, projects);
+  writeJson(dataFiles.pages, pages);
+  writeJson(dataFiles.components, components);
+  writeJson(dataFiles.media, media);
+}
+loadAll();
 
 // File upload configuration
 const storage = multer.diskStorage({

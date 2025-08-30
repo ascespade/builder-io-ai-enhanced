@@ -343,6 +343,44 @@ app.get('/api/stats', authenticateToken, (req, res) => {
   });
 });
 
+// AI: Gemini proxy
+app.post('/api/ai/gemini', authenticateToken, async (req, res) => {
+  try {
+    const key = process.env.GEMINI_API_KEY || req.headers['x-gemini-key'];
+    if (!key) return res.status(400).json({ error: 'Missing Gemini API key' });
+    const { system, messages, model } = req.body || {};
+    const m = model || 'gemini-1.5-pro';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(key)}`;
+
+    const contents = (messages || []).map((msg) => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: String(msg.content || '') }]
+    }));
+
+    const body = {
+      contents,
+      systemInstruction: system ? { role: 'user', parts: [{ text: String(system) }] } : undefined,
+      generationConfig: { temperature: 0.3, topP: 0.95, topK: 40, maxOutputTokens: 2048 }
+    };
+
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      return res.status(resp.status).json(data);
+    }
+    const text = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts)
+      ? data.candidates[0].content.parts.map(p => p.text || '').join('')
+      : '';
+    res.json({ text, raw: data });
+  } catch (e) {
+    res.status(500).json({ error: 'AI request failed', details: e.message });
+  }
+});
+
 // Create necessary directories
 const dirs = ['public', 'uploads', 'projects'];
 dirs.forEach(dir => {
@@ -354,16 +392,16 @@ dirs.forEach(dir => {
 // Socket.IO for real-time collaboration
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
-  
+
   socket.on('join-project', (projectId) => {
     socket.join(projectId);
     console.log(`User ${socket.id} joined project ${projectId}`);
   });
-  
+
   socket.on('page-update', (data) => {
     socket.to(data.projectId).emit('page-updated', data);
   });
-  
+
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
   });

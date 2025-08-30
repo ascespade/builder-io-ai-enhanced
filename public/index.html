@@ -871,6 +871,13 @@
                     <label for="project-name">Project Name</label>
                     <input type="text" id="project-name-clone" placeholder="Enter project name" required>
                 </div>
+                <div class="form-group">
+                    <label><input type="checkbox" id="repo-private"> Private repository</label>
+                </div>
+                <div class="form-group" id="gh-token-wrap" style="display:none;">
+                    <label for="gh-token">GitHub Personal Access Token</label>
+                    <input type="password" id="gh-token" placeholder="ghp_... (repo scope)">
+                </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('clone-repo')">Cancel</button>
                     <button type="submit" class="btn btn-primary">Clone Repository</button>
@@ -1322,12 +1329,17 @@
             }
         });
 
+        const repoPrivateEl = document.getElementById('repo-private');
+        const ghTokenWrap = document.getElementById('gh-token-wrap');
+        const ghTokenEl = document.getElementById('gh-token');
+        repoPrivateEl.addEventListener('change',()=>{ ghTokenWrap.style.display = repoPrivateEl.checked ? 'block' : 'none'; });
+
         document.getElementById('clone-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
             const formData = {
                 repoUrl: document.getElementById('repo-url').value,
-                projectName: document.getElementById('project-name-clone').value
+                projectName: document.getElementById('project-name-clone').value,
+                ghToken: repoPrivateEl.checked ? ghTokenEl.value : ''
             };
 
             try {
@@ -1341,13 +1353,14 @@
                 });
 
                 if (response.ok) {
-                    const result = await response.json();
+                    await response.json();
                     alert('Repository cloned successfully!');
                     closeModal('clone-repo');
                     document.getElementById('clone-form').reset();
+                    ghTokenWrap.style.display = 'none';
                 } else {
-                    const error = await response.json();
-                    alert(`Failed to clone repository: ${error.error}`);
+                    const error = await response.json().catch(()=>({ error:'Unknown error'}));
+                    alert(`Failed to clone repository: ${error.error || 'Unknown error'}`);
                 }
             } catch (error) {
                 console.error('Error cloning repository:', error);
